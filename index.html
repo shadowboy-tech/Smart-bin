@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Motion Bin Command Center</title>
+    <style>
+        /* ===== RESET & BASE STYLES ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary-dark: #0a0e27;
+            --secondary-dark: #1a1f3a;
+            --accent-blue: #00d4ff;
+            --accent-purple: #7c3aed;
+            --danger-red: #ef4444;
+            --warning-yellow: #fbbf24;
+            --success-green: #10b981;
+            --text-primary: #f0f9ff;
+            --text-secondary: #cbd5e1;
+            --border-color: #334155;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        body {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, #0f1535 100%);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* ===== HEADER ===== */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 20px;
+            background: rgba(122, 60, 237, 0.08);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            animation: fadeInDown 0.8s ease-out;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+        }
+        header p { font-size: 1.1rem; color: var(--text-secondary); font-style: italic; }
+
+        /* ===== MAIN LAYOUT ===== */
+        .container { max-width: 1400px; margin: 0 auto; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+        @media (max-width: 1024px) { .dashboard { grid-template-columns: 1fr; } }
+
+        /* ===== MAP SECTION ===== */
+        .map-section {
+            background: var(--secondary-dark); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 30px; animation: fadeInLeft 0.8s ease-out 0.2s both;
+        }
+        .map-section h2 { font-size: 1.3rem; margin-bottom: 20px; color: var(--accent-blue); text-transform: uppercase; }
+        .map-container {
+            width: 100%; max-width: 500px; margin: 0 auto; background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px; padding: 20px; position: relative;
+        }
+        svg.floor-plan { width: 100%; height: auto; filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.3)); }
+        .map-node { cursor: pointer; transition: r 0.3s ease; }
+        .map-node:hover { filter: brightness(1.2); }
+        .map-marker { transition: var(--transition); filter: drop-shadow(0 0 12px rgba(0, 212, 255, 0.8)); }
+        @keyframes pulse { 0%, 100% { r: 8; opacity: 1; } 50% { r: 12; opacity: 0.6; } }
+        .map-marker.moving { animation: pulse 1.5s ease-in-out infinite; }
+
+        /* ===== CONTROL & TELEMETRY SECTION ===== */
+        .control-section { animation: fadeInRight 0.8s ease-out 0.2s both; }
+        .control-panel, .telemetry-panel, .logs-section {
+            background: var(--secondary-dark); border: 1px solid var(--border-color);
+            border-radius: 12px; padding: 25px; margin-bottom: 20px;
+        }
+        .control-panel h2, .telemetry-panel h2, .logs-section h2 {
+            font-size: 1.3rem; margin-bottom: 20px; color: var(--accent-blue); text-transform: uppercase;
+        }
+        .button-grid, .telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .telemetry-grid { gap: 20px; margin-bottom: 20px; }
+        
+        .cmd-btn {
+            padding: 15px 20px; background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+            border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer;
+            transition: var(--transition); text-transform: uppercase;
+        }
+        .cmd-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 212, 255, 0.3); }
+
+        .telemetry-item { background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 8px; border: 1px solid rgba(0, 212, 255, 0.1); }
+        .telemetry-label { font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; display: block; margin-bottom: 12px; }
+        
+        .battery-container { display: flex; align-items: center; gap: 15px; }
+        .battery-gauge { width: 80px; height: 80px; position: relative; }
+        .battery-bg { fill: none; stroke: rgba(0, 212, 255, 0.2); stroke-width: 6; }
+        .battery-fill {
+            fill: none; stroke: var(--success-green); stroke-width: 6;
+            stroke-dasharray: 251.2; stroke-dashoffset: 0; transition: var(--transition); stroke-linecap: round;
+        }
+        .battery-fill.warning { stroke: var(--warning-yellow); }
+        .battery-fill.danger { stroke: var(--danger-red); }
+        .battery-info p { margin: 5px 0; color: var(--text-secondary); }
+
+        .distance-display { font-size: 1.8rem; font-weight: 700; color: var(--accent-blue); margin-bottom: 8px; }
+        .distance-display.warning { color: var(--danger-red); animation: flash 0.6s infinite; }
+        @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .obstacle-badge {
+            display: inline-block; background: var(--danger-red); color: white; padding: 6px 12px;
+            border-radius: 20px; font-size: 0.8rem; font-weight: 600; opacity: 0; transition: var(--transition);
+        }
+        .obstacle-badge.show { opacity: 1; }
+
+        .sensors-container { display: flex; justify-content: space-around; gap: 10px; }
+        .sensor { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .sensor-dot {
+            width: 50px; height: 50px; border-radius: 50%; background: rgba(0, 212, 255, 0.2);
+            border: 2px solid var(--accent-blue); transition: var(--transition);
+        }
+        .sensor-dot.active { background: var(--accent-blue); box-shadow: 0 0 16px rgba(0, 212, 255, 0.6); }
+        .sensor-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
+
+        .checkpoints { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 15px; }
+        .checkpoint { background: rgba(0,0,0,0.3); border: 2px solid rgba(0,212,255,0.3); border-radius: 8px; padding: 12px; text-align: center; }
+        .checkpoint.reached { background: rgba(16,185,129,0.2); border-color: var(--success-green); }
+        .checkpoint-name { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; }
+        .checkpoint-status { font-size: 1.2rem; font-weight: 700; color: var(--accent-blue); }
+        .checkpoint.reached .checkpoint-status { color: var(--success-green); }
+
+        #systemLogs {
+            width: 100%; height: 250px; background: #000; border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 8px; padding: 15px; color: #00ff00; font-family: monospace; overflow-y: auto;
+        }
+
+        /* NOTIFICATIONS */
+        .notification-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+        .notification { background: var(--secondary-dark); border: 2px solid; border-radius: 8px; padding: 16px 20px; display: flex; gap: 12px; color: white;}
+        .notification.danger { border-color: var(--danger-red); }
+        .notification.success { border-color: var(--success-green); }
+        .notification-close { background: none; border: none; color: white; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Smart Motion Bin Command Center</h1>
+        <p>Why go to the bin when the bin can come to you? Stay focused, stay productive</p>
+    </header>
+
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <div class="container">
+        <div class="dashboard">
+            <div class="map-section">
+                <h2>📍 Live Tracking Map</h2>
+                <div class="map-container">
+                    <svg class="floor-plan" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+                        <rect width="600" height="400" fill="rgba(15, 23, 42, 0.5)" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2"/>
+                        <line x1="100" y1="80" x2="500" y2="80" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2" stroke-dasharray="5,5"/>
+                        <line x1="100" y1="80" x2="100" y2="320" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2" stroke-dasharray="5,5"/>
+                        <line x1="500" y1="80" x2="500" y2="320" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2" stroke-dasharray="5,5"/>
+                        <line x1="100" y1="320" x2="500" y2="320" stroke="rgba(0, 212, 255, 0.3)" stroke-width="2" stroke-dasharray="5,5"/>
+                        
+                        <circle class="map-node" cx="100" cy="80" r="12" fill="rgba(0, 212, 255, 0.6)"/>
+                        <text x="100" y="110" text-anchor="middle" fill="rgba(0, 212, 255, 0.8)">START</text>
+                        
+                        <circle class="map-node" cx="500" cy="80" r="12" fill="rgba(0, 212, 255, 0.6)"/>
+                        <text x="500" y="110" text-anchor="middle" fill="rgba(0, 212, 255, 0.8)">PT. 1</text>
+                        
+                        <circle class="map-node" cx="100" cy="320" r="12" fill="rgba(0, 212, 255, 0.6)"/>
+                        <text x="100" y="350" text-anchor="middle" fill="rgba(0, 212, 255, 0.8)">PT. 2</text>
+                        
+                        <circle class="map-node" cx="500" cy="320" r="12" fill="rgba(0, 212, 255, 0.6)"/>
+                        <text x="500" y="350" text-anchor="middle" fill="rgba(0, 212, 255, 0.8)">PT. 3</text>
+                        
+                        <circle id="binMarker" class="map-marker" cx="100" cy="80" r="8" fill="#ff6b35" stroke="rgba(255, 107, 53, 0.8)" stroke-width="2"/>
+                    </svg>
+                </div>
+                <p style="margin-top: 15px; color: var(--text-secondary); text-align: center;">
+                    Status: <strong id="locationStatus">Waiting...</strong>
+                </p>
+            </div>
+
+            <div class="control-section">
+                <div class="control-panel">
+                    <h2>🎮 Control Panel</h2>
+                    <div class="button-grid">
+                        <button class="cmd-btn" onclick="sendCommand('Start')">Call to Start</button>
+                        <button class="cmd-btn" onclick="sendCommand('Point 1')">Call to Pt. 1</button>
+                        <button class="cmd-btn" onclick="sendCommand('Point 2')">Call to Pt. 2</button>
+                        <button class="cmd-btn" onclick="sendCommand('Point 3')">Call to Pt. 3</button>
+                    </div>
+                </div>
+
+                <div class="telemetry-panel">
+                    <h2>📊 Telemetry</h2>
+                    <div class="telemetry-grid">
+                        <div class="telemetry-item">
+                            <span class="telemetry-label">🔋 Battery</span>
+                            <div class="battery-container">
+                                <svg class="battery-gauge" viewBox="0 0 100 100">
+                                    <circle class="battery-bg" cx="50" cy="50" r="40"/>
+                                    <circle id="batteryFill" class="battery-fill" cx="50" cy="50" r="40"/>
+                                </svg>
+                                <div class="battery-info">
+                                    <p id="batteryPercent">--%</p>
+                                    <p id="batteryStatus">Loading</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="telemetry-item">
+                            <span class="telemetry-label">⚠️ Obstacle Radar</span>
+                            <div class="distance-display" id="distanceDisplay">-- cm</div>
+                            <span class="obstacle-badge" id="obstacleWarning">⚠ OBSTACLE</span>
+                        </div>
+                        <div class="telemetry-item" style="grid-column: 1 / -1;">
+                            <span class="telemetry-label">🔍 Line-Following IR Sensors</span>
+                            <div class="sensors-container">
+                                <div class="sensor"><div class="sensor-dot" id="sensorLeft"></div><span class="sensor-label">Left</span></div>
+                                <div class="sensor"><div class="sensor-dot" id="sensorCenter"></div><span class="sensor-label">Center</span></div>
+                                <div class="sensor"><div class="sensor-dot" id="sensorRight"></div><span class="sensor-label">Right</span></div>
+                            </div>
+                        </div>
+                        <div class="telemetry-item" style="grid-column: 1 / -1;">
+                            <span class="telemetry-label">🎯 Point Detection IR Sensors</span>
+                            <div class="sensors-container">
+                                <div class="sensor"><div class="sensor-dot" id="sensorPoint1"></div><span class="sensor-label">Detect 1</span></div>
+                                <div class="sensor"><div class="sensor-dot" id="sensorPoint2"></div><span class="sensor-label">Detect 2</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="telemetry-label">✓ Checkpoint Progress</span>
+                        <div class="checkpoints">
+                            <div class="checkpoint" id="checkpointStart"><div class="checkpoint-name">START</div><div class="checkpoint-status">⭕ Pending</div></div>
+                            <div class="checkpoint" id="checkpointPoint1"><div class="checkpoint-name">POINT 1</div><div class="checkpoint-status">⭕ Pending</div></div>
+                            <div class="checkpoint" id="checkpointPoint2"><div class="checkpoint-name">POINT 2</div><div class="checkpoint-status">⭕ Pending</div></div>
+                            <div class="checkpoint" id="checkpointPoint3"><div class="checkpoint-name">POINT 3</div><div class="checkpoint-status">⭕ Pending</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="logs-section">
+            <h2>📜 System Logs</h2>
+            <textarea id="systemLogs" readonly placeholder="System logs will appear here..."></textarea>
+        </div>
+    </div>
+
+    <script type="module">
+        const firebaseConfig = {
+            apiKey: "AIzaSyD9z1HOU7BTJqXFiuDuo05T1ppxjOlH_Vk",
+            authDomain: "motion-bin.firebaseapp.com",
+            databaseURL: "https://motion-bin-default-rtdb.firebaseio.com",
+            projectId: "motion-bin",
+            storageBucket: "motion-bin.firebasestorage.app",
+            messagingSenderId: "1055097467115",
+            appId: "1:1055097467115:web:82e829422738b04d2a4eae",
+            measurementId: "G-J87D140MVY"
+        };
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        const state = {
+            currentLocation: "Start",
+            destination: "Start",
+            distanceCm: 0,
+            irLeft: 0, irCenter: 0, irRight: 0,
+            pointDetect1: false, pointDetect2: false,
+            batteryPercent: 0,
+            latestLog: "",
+            isMoving: false,
+            reachedCheckpoints: { "Start": false, "Point 1": false, "Point 2": false, "Point 3": false },
+            lastObstacleState: false,
+            nodeCoordinates: {
+                "Start": { x: 100, y: 80 }, "Point 1": { x: 500, y: 80 },
+                "Point 2": { x: 100, y: 320 }, "Point 3": { x: 500, y: 320 }
+            }
+        };
+
+        const dom = {
+            binMarker: document.getElementById("binMarker"),
+            locationStatus: document.getElementById("locationStatus"),
+            batteryFill: document.getElementById("batteryFill"),
+            batteryPercent: document.getElementById("batteryPercent"),
+            batteryStatus: document.getElementById("batteryStatus"),
+            distanceDisplay: document.getElementById("distanceDisplay"),
+            obstacleWarning: document.getElementById("obstacleWarning"),
+            sensorLeft: document.getElementById("sensorLeft"),
+            sensorCenter: document.getElementById("sensorCenter"),
+            sensorRight: document.getElementById("sensorRight"),
+            sensorPoint1: document.getElementById("sensorPoint1"),
+            sensorPoint2: document.getElementById("sensorPoint2"),
+            systemLogs: document.getElementById("systemLogs"),
+            checkpointStart: document.getElementById("checkpointStart"),
+            checkpointPoint1: document.getElementById("checkpointPoint1"),
+            checkpointPoint2: document.getElementById("checkpointPoint2"),
+            checkpointPoint3: document.getElementById("checkpointPoint3"),
+            notificationContainer: document.getElementById("notificationContainer")
+        };
+
+        function showNotification(message, type = 'info', duration = 5000) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<span class="notification-message">${message}</span><button class="notification-close" onclick="this.parentElement.remove()">✕</button>`;
+            dom.notificationContainer.appendChild(notification);
+            if (duration > 0) {
+                setTimeout(() => {
+                    notification.remove();
+                }, duration);
+            }
+        }
+
+        const statusRef = ref(database, '/bin_status');
+        onValue(statusRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const prevLocation = state.currentLocation;
+                state.currentLocation = data.current_location || "Start";
+                state.destination = data.destination || "Start";
+                state.distanceCm = data.distance_cm || 0;
+                state.irLeft = data.ir_left || 0;
+                state.irCenter = data.ir_center || 0;
+                state.irRight = data.ir_right || 0;
+                state.pointDetect1 = data.point_detection_1 || false;
+                state.pointDetect2 = data.point_detection_2 || false;
+                state.batteryPercent = data.battery_percent || 0;
+                state.isMoving = state.currentLocation === "Moving";
+
+                if (prevLocation !== state.currentLocation && state.currentLocation !== "Moving") {
+                    state.reachedCheckpoints[state.currentLocation] = true;
+                    addSystemLog(`✓ Successfully reached ${state.currentLocation}!`);
+                }
+
+                if (data.latest_log && data.latest_log !== state.latestLog) {
+                    state.latestLog = data.latest_log;
+                    addSystemLog(data.latest_log);
+                }
+
+                updateUI();
+            }
+        });
+
+        function updateUI() {
+            const coords = state.nodeCoordinates[state.currentLocation];
+            if (coords) {
+                dom.binMarker.setAttribute("cx", coords.x);
+                dom.binMarker.setAttribute("cy", coords.y);
+            }
+            state.isMoving ? dom.binMarker.classList.add("moving") : dom.binMarker.classList.remove("moving");
+
+            dom.locationStatus.textContent = state.isMoving ? `Moving → ${state.destination}` : state.currentLocation;
+
+            const percent = state.batteryPercent;
+            dom.batteryPercent.textContent = `${percent}%`;
+            dom.batteryFill.setAttribute("stroke-dashoffset", 251.2 * (1 - percent / 100));
+            dom.batteryFill.classList.remove("warning", "danger");
+            if (percent < 20) { dom.batteryFill.classList.add("danger"); dom.batteryStatus.textContent = "⚠ CRITICAL"; }
+            else if (percent < 50) { dom.batteryFill.classList.add("warning"); dom.batteryStatus.textContent = "⚠ Low"; }
+            else { dom.batteryStatus.textContent = "✓ Healthy"; }
+
+            const distance = state.distanceCm;
+            const obstacleDetected = distance < 15 && distance > 0;
+            dom.distanceDisplay.textContent = `${distance} cm`;
+            obstacleDetected ? dom.obstacleWarning.classList.add("show") : dom.obstacleWarning.classList.remove("show");
+
+            if (obstacleDetected !== state.lastObstacleState) {
+                state.lastObstacleState = obstacleDetected;
+                if (obstacleDetected) { showNotification(`⚠ OBSTACLE DETECTED at ${distance} cm!`, 'danger', 0); }
+                else { showNotification(`✓ Obstacle cleared.`, 'success', 3000); }
+            }
+
+            dom.sensorLeft.classList.toggle("active", state.irLeft === 1);
+            dom.sensorCenter.classList.toggle("active", state.irCenter === 1);
+            dom.sensorRight.classList.toggle("active", state.irRight === 1);
+            dom.sensorPoint1.classList.toggle("active", state.pointDetect1);
+            dom.sensorPoint2.classList.toggle("active", state.pointDetect2);
+
+            const checkpoints = { "Start": dom.checkpointStart, "Point 1": dom.checkpointPoint1, "Point 2": dom.checkpointPoint2, "Point 3": dom.checkpointPoint3 };
+            Object.entries(checkpoints).forEach(([location, element]) => {
+                if (state.reachedCheckpoints[location]) {
+                    element.classList.add("reached");
+                    element.querySelector(".checkpoint-status").innerHTML = `✓ Reached`;
+                }
+            });
+        }
+
+        function addSystemLog(message) {
+            const time = new Date().toLocaleTimeString();
+            dom.systemLogs.value += `[${time}] ${message}\n`;
+            dom.systemLogs.scrollTop = dom.systemLogs.scrollHeight;
+        }
+
+        window.sendCommand = function(location) {
+            set(ref(database, "bin_commands/target_location"), location)
+                .then(() => addSystemLog(`📤 Command issued: Navigate to ${location}`))
+                .catch((error) => addSystemLog(`❌ Error sending command: ${error}`));
+        };
+
+        addSystemLog("🚀 Dashboard initialized. Connected to Firebase.");
+    </script>
+</body>
+</html>
